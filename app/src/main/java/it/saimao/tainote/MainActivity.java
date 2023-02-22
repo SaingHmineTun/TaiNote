@@ -5,7 +5,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.lifecycle.ViewModelProviderGetKt;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -26,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     private NoteViewModel noteViewModel;
     private FloatingActionButton buttonAddNote;
     public static final int ADD_NOTE_REQUEST = 1;
+    public static final int EDIT_NOTE_REQUEST = 2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,14 +37,20 @@ public class MainActivity extends AppCompatActivity {
 
         NoteAdapter adapter = new NoteAdapter();
         recyclerView.setAdapter(adapter);
+        adapter.setOnItemClickListener(note -> {
+            Intent intent = new Intent(MainActivity.this, AddEditNoteActivity.class);
+            intent.putExtra(AddEditNoteActivity.EXTRA_TITLE, note.getTitle());
+            intent.putExtra(AddEditNoteActivity.EXTRA_DESCRIPTION, note.getDescription());
+            intent.putExtra(AddEditNoteActivity.EXTRA_PRIORITY, note.getPriority());
+            intent.putExtra(AddEditNoteActivity.EXTRA_ID, note.getId());
+            startActivityForResult(intent, EDIT_NOTE_REQUEST);
+
+        });
 
         noteViewModel = new ViewModelProvider(this).get(NoteViewModel.class);
-        noteViewModel.getAllNotes().observe(this, new Observer<List<Note>>() {
-            @Override
-            public void onChanged(List<Note> notes) {
-                // update our RecyclerView
-                adapter.setNotes(notes);
-            }
+        noteViewModel.getAllNotes().observe(this, notes -> {
+            // update our RecyclerView
+            adapter.submitList(notes);
         });
 
         // Swipe right or left to delete note
@@ -63,7 +69,7 @@ public class MainActivity extends AppCompatActivity {
         
         buttonAddNote = findViewById(R.id.button_add_note);
         buttonAddNote.setOnClickListener(e -> {
-            Intent intent = new Intent(MainActivity.this, AddNoteActivity.class);
+            Intent intent = new Intent(MainActivity.this, AddEditNoteActivity.class);
             startActivityForResult(intent, ADD_NOTE_REQUEST);
         });
     }
@@ -90,14 +96,31 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         
         if (requestCode == ADD_NOTE_REQUEST && resultCode == RESULT_OK) {
-            String title = data.getStringExtra(AddNoteActivity.EXTRA_TITLE);
-            String description = data.getStringExtra(AddNoteActivity.EXTRA_DESCRIPTION);
-            int priority = data.getIntExtra(AddNoteActivity.EXTRA_PRIORITY, 1);
+            String title = data.getStringExtra(AddEditNoteActivity.EXTRA_TITLE);
+            String description = data.getStringExtra(AddEditNoteActivity.EXTRA_DESCRIPTION);
+            int priority = data.getIntExtra(AddEditNoteActivity.EXTRA_PRIORITY, 1);
             
             Note note = new Note(title, description,priority);
             noteViewModel.insert(note);
             Toast.makeText(this, "Note saved", Toast.LENGTH_SHORT).show();
-        } else {
+            
+        } if (requestCode == EDIT_NOTE_REQUEST && resultCode == RESULT_OK) {
+            int id = data.getIntExtra(AddEditNoteActivity.EXTRA_ID, -1);
+            if (id == -1) {
+                Toast.makeText(this, "Note can't be updated", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String title = data.getStringExtra(AddEditNoteActivity.EXTRA_TITLE);
+            String description = data.getStringExtra(AddEditNoteActivity.EXTRA_DESCRIPTION);
+            int priority = data.getIntExtra(AddEditNoteActivity.EXTRA_PRIORITY, 1);
+
+            Note note = new Note(title, description,priority);
+            note.setId(id);
+            noteViewModel.update(note);
+            Toast.makeText(this, "Update Note successfully!", Toast.LENGTH_SHORT).show();
+        }
+        else {
             Toast.makeText(this, "Note not saved", Toast.LENGTH_SHORT).show();
         }
     }
